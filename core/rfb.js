@@ -10,7 +10,7 @@
 import { toUnsigned32bit, toSigned32bit } from './util/int.js';
 import * as Log from './util/logging.js';
 import { encodeUTF8, decodeUTF8 } from './util/strings.js';
-import { dragThreshold } from './util/browser.js';
+import { dragThreshold, supportsCursorURIs, isTouchDevice } from './util/browser.js';
 import { clientToElement } from './util/element.js';
 import { setCapture } from './util/events.js';
 import EventTargetMixin from './util/eventtarget.js';
@@ -771,7 +771,7 @@ export default class RFB extends EventTargetMixin {
         if (!this._scaleViewport) {
             this._display.scale = 1.0;
         } else {
-            const size = this._screenSize();
+            const size = this._screenSize(false);
             this._display.autoscale(size.w, size.h);
         }
         this._fixScrollbars();
@@ -2010,20 +2010,17 @@ export default class RFB extends EventTargetMixin {
         encs.push(encodings.pseudoEncodingVideoScalingLevel0 + this.videoScaling);
         encs.push(encodings.pseudoEncodingFrameRateLevel10 + this.frameRate - 10);
         encs.push(encodings.pseudoEncodingMaxVideoResolution);
-        if (this._fbDepth == 24) {
-            encs.push(encodings.pseudoEncodingVMwareCursor);
-            encs.push(encodings.pseudoEncodingCursor);
-        }
-        encs.push(encodings.pseudoEncodingVMwareCursorPosition);
 
-        //if (supportsCursorURIs() && this._fb_depth == 24){
-            // Allow the user to attempt using a local cursor even if they are using a touch device.  KASM-395
-            if (this.preferLocalCursor || !isTouchDevice){
-                encs.push(encodings.pseudoEncodingCursor)
-            }
-        //}
         if (this.preferBandwidth) // must be last - server processes in reverse order
             encs.push(encodings.pseudoEncodingPreferBandwidth);
+
+        if (supportsCursorURIs && this._fbDepth == 24) {
+            if (this.preferLocalCursor || !isTouchDevice) {
+                encs.push(encodings.pseudoEncodingVMwareCursor);
+                encs.push(encodings.pseudoEncodingCursor);
+	    }
+        }
+        encs.push(encodings.pseudoEncodingVMwareCursorPosition);
 
         RFB.messages.clientEncodings(this._sock, encs);
     }
