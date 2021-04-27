@@ -2014,11 +2014,9 @@ export default class RFB extends EventTargetMixin {
         if (this.preferBandwidth) // must be last - server processes in reverse order
             encs.push(encodings.pseudoEncodingPreferBandwidth);
 
-        if (supportsCursorURIs && this._fbDepth == 24) {
-            if (this.preferLocalCursor || !isTouchDevice) {
-                encs.push(encodings.pseudoEncodingVMwareCursor);
-                encs.push(encodings.pseudoEncodingCursor);
-	    }
+        if (this._fbDepth == 24) {
+            encs.push(encodings.pseudoEncodingVMwareCursor);
+            encs.push(encodings.pseudoEncodingCursor);
         }
         encs.push(encodings.pseudoEncodingVMwareCursorPosition);
 
