@@ -499,7 +499,7 @@ const UI = {
             UI.updatePowerButton();
             UI.keepControlbar();
         }
-        UI.updatePointerLockButton();
+        //UI.updatePointerLockButton();
 
         // State change closes dialogs as they may not be relevant
         // anymore
