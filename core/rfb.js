@@ -32,6 +32,7 @@ import RREDecoder from "./decoders/rre.js";
 import HextileDecoder from "./decoders/hextile.js";
 import TightDecoder from "./decoders/tight.js";
 import TightPNGDecoder from "./decoders/tightpng.js";
+import { toSignedRelative16bit } from './util/int.js';
 
 // How many seconds to wait for a disconnect to finish
 const DISCONNECT_TIMEOUT = 3;
@@ -175,6 +176,9 @@ export default class RFB extends EventTargetMixin {
         this._mouseButtonMask = 0;
         this._mouseLastMoveTime = 0;
         this._pointerLock = false;
+        this._pointerLockPos = { x: 0, y: 0 };
+        this._pointerRelative = 0; // 0 auto, 1 off, 2 on
+        this._pointerRelativeEnabled = false;
         this._viewportDragging = false;
         this._viewportDragPos = {};
         this._viewportHasMoved = false;
@@ -339,6 +343,23 @@ export default class RFB extends EventTargetMixin {
 
     get videoQuality() { return this._videoQuality; }
     set videoQuality(quality) { this._videoQuality = quality; }
+
+    get pointerRelative() { return this._pointerRelative; }
+    set pointerRelative(value) 
+    { 
+        this._pointerRelative = value;
+        //Any change other than static on, results in resetting 
+        //Auto will need to recieve another server side cursor update to re-enable
+        this._pointerRelativeEnabled = (value == 2);
+        if (value == 2) {
+            this._pointerLockPos.x = this._fbWidth / 2;
+            this._pointerLockPos.y = this._fbHeight / 2;
+
+            // reset the cursor position to center
+            this._mousePos = { x: this._pointerLockPos.x , y: this._pointerLockPos.y };
+            this._cursor.move(this._pointerLockPos.x, this._pointerLockPos.y);
+        }
+    }
 
     get enableWebP() { return this._enableWebP; }
     set enableWebP(enabled) { this._enableWebP = enabled; }
@@ -1048,7 +1069,12 @@ export default class RFB extends EventTargetMixin {
             } else if (pos.y > this._fbHeight) {
                 pos.y = this._fbHeight;
             }
-            this._cursor.move(pos.x, pos.y);
+            //this._cursor.move(pos.x, pos.y);
+        } else if (this._pointerRelativeEnabled) {
+            pos = {
+                x: this._mousePos.x + ev.movementX,
+                y: this._mousePos.y + ev.movementY,
+            };
         } else {
             pos = clientToElement(ev.clientX, ev.clientY,
                                   this._canvas);
@@ -1182,8 +1208,26 @@ export default class RFB extends EventTargetMixin {
         if (this._rfbConnectionState !== 'connected') { return; }
         if (this._viewOnly) { return; } // View only, skip mouse events
 
-        RFB.messages.pointerEvent(this._sock, this._display.absX(x),
+        if (this._pointerRelativeEnabled) {
+            // Use releative cursor position
+            var rel_16_x = toSignedRelative16bit(x - this._pointerLockPos.x);
+            var rel_16_y = toSignedRelative16bit(y - this._pointerLockPos.y);
+
+            //console.log("new_pos x" + x + ", y" + y);
+            //console.log("lock x " + this._pointerLockPos.x + ", y " + this._pointerLockPos.y);
+            //console.log("rel x " + rel_16_x + ", y " + rel_16_y);
+
+            RFB.messages.pointerEvent(this._sock, rel_16_x,
+                                  rel_16_y, mask);
+            
+            // reset the cursor position to center
+            this._mousePos = { x: this._pointerLockPos.x , y: this._pointerLockPos.y };
+            this._cursor.move(this._pointerLockPos.x, this._pointerLockPos.y);
+        } else {
+            RFB.messages.pointerEvent(this._sock, this._display.absX(x),
                                   this._display.absY(y), mask);
+        }
+        
     }
 
     _handleWheel(ev) {
@@ -2583,6 +2627,48 @@ export default class RFB extends EventTargetMixin {
     _handleVMwareCursorPosition() {
         const x = this._FBU.x;
         const y = this._FBU.y;
+
+        console.log("PointerLock: " + x + "x" + y);
+
+        // If enabling relative cursor is set to auto (0) look for server side cursor updates
+        if (this._pointerRelative == 0) 
+        {
+            if (this._pointerRelativeEnabled) {
+                // disable if the cursor was repositioned roughly lower right corner
+                if (x > (this._fbWidth -5) && y > (this._fbHeight - 5))
+                {
+                    this._pointerRelativeEnabled = false;
+                    console.log("Relative cursor disabled");
+                }
+            } 
+            else 
+            {
+                var center_x = Math.floor(this._fbWidth / 2);
+                var center_y = Math.floor(this._fbHeight / 2);
+                if ( x > (center_x - 50) && x < (center_x + 50) && y > (center_y - 50) && y < (center_y + 50)) 
+                {
+                    this._pointerRelativeEnabled = true;
+                    this._pointerLockPos.x = center_x;
+                    this._pointerLockPos.y = center_y;
+
+                    // reset the cursor position to center
+                    this._mousePos = { x: this._pointerLockPos.x , y: this._pointerLockPos.y };
+                    this._cursor.move(this._pointerLockPos.x, this._pointerLockPos.y);
+
+                    console.log("Relative cursor Enabled");
+                    return true;
+                }
+            }
+            
+        }
+
+        //TODO: Testing only, do not merge
+        //this._pointerLockPos = { x: x, y: y };
+        //this._cursor.move(x, y);
+        //this._pointerLock = true;
+        
+        //return true;
+
 
         if (this._pointerLock) {
             // Only attempt to match the server's pointer position if we are in

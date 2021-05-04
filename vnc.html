@@ -99,11 +99,6 @@
                 id="noVNC_view_drag_button" class="noVNC_button noVNC_hidden"
                 title="Move/Drag Viewport">
 
-            <!-- Lock pointer events -->
-            <input type="image" alt="Lock pointer" src="app/images/pointer.svg"
-                id="noVNC_pointer_lock_button" class="noVNC_button"
-                title="Lock pointer">
-
             <!--noVNC Touch Device only buttons-->
             <div id="noVNC_mobile_buttons">
                 <input type="image" alt="Keyboard" src="app/images/keyboard.svg"
@@ -209,6 +204,19 @@
                             <option value=1>Medium</option>
                             <option value=2>High</option>
                         </select>
+                    </li>
+                    <li>
+                        <label for="noVNC_setting_pointer_relative">Relative Pointer:</label>
+                        <select id="noVNC_setting_pointer_relative" name="vncPointerRelative">
+                            <option value=0>Auto</option>
+                            <option value=1>Off</option>
+                            <option value=2>On</option>
+                        </select>
+                    </li>
+                    <li>
+                        <label>
+                            <input type="checkbox" id="noVNC_pointer_lock_button" />  Enable Pointer Lock
+                        </label>
                     </li>
                     <li>
                         <label for="noVNC_setting_idle_disconnect">Idle Timeout:</label>

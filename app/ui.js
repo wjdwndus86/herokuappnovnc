@@ -200,6 +200,7 @@ const UI = {
         UI.initSetting('prefer_local_cursor', true);
         UI.initSetting('toggle_control_panel', false);
         UI.initSetting('enable_perf_stats', false);
+        UI.initSetting('pointer_relative', 0); // 0 auto, 1 off, 2, on
 
         if (WebUtil.isInsideKasmVDI()) {
             UI.initSetting('video_quality', 1);
@@ -1224,6 +1225,8 @@ const UI = {
         UI.rfb.showDotCursor = UI.getSetting('show_dot');
         UI.rfb.idleDisconnect = UI.getSetting('idle_disconnect');
         UI.rfb.videoQuality = UI.getSetting('video_quality');
+        UI.rfb.pointerRelative = UI.getSetting('pointer_relative');
+
         UI.rfb.clipboardUp = UI.getSetting('clipboard_up');
         UI.rfb.clipboardDown = UI.getSetting('clipboard_down');
         UI.rfb.clipboardSeamless = UI.getSetting('clipboard_seamless');
