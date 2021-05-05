@@ -200,7 +200,7 @@ const UI = {
         UI.initSetting('prefer_local_cursor', true);
         UI.initSetting('toggle_control_panel', false);
         UI.initSetting('enable_perf_stats', false);
-        UI.initSetting('pointer_relative', 0); // 0 auto, 1 off, 2, on
+        UI.initSetting('pointer_relative', false); 
 
         if (WebUtil.isInsideKasmVDI()) {
             UI.initSetting('video_quality', 1);
@@ -266,8 +266,11 @@ const UI = {
             .addEventListener('click', UI.toggleViewDrag);
 
         document
-            .getElementById("noVNC_pointer_lock_button")
+            .getElementById("noVNC_setting_pointer_lock")
             .addEventListener("click", UI.requestPointerLock);
+        document
+            .getElementById("noVNC_setting_pointer_relative")
+            .addEventListener("click", UI.toggleRelativePointer)
 
         document.getElementById("noVNC_control_bar_handle")
             .addEventListener('mousedown', UI.controlbarHandleMouseDown);
@@ -527,7 +530,12 @@ const UI = {
         
     },
 
-    showStatus(text, statusType, time) {
+    showStatus(text, statusType, time, kasm = false) {
+        // If inside the full Kasm CDI framework, don't show messages unless explicitly told to
+        if (WebUtil.isInsideKasmVDI() && !kasm) {
+            return;
+        }
+
         const statusElem = document.getElementById('noVNC_status');
 
         if (typeof statusType === 'undefined') {
@@ -1607,17 +1615,42 @@ const UI = {
                 document.mozPointerLockElement !== undefined)
         ) {
             document
-                .getElementById("noVNC_pointer_lock_button")
+                .getElementById("noVNC_setting_pointer_lock")
+                .classList.remove("noVNC_hidden");
+            document
+                .getElementById("noVNC_setting_pointer_relative")
                 .classList.remove("noVNC_hidden");
         } else {
             document
-                .getElementById("noVNC_pointer_lock_button")
+                .getElementById("noVNC_setting_pointer_lock")
+                .classList.add("noVNC_hidden");
+            document
+                .getElementById("noVNC_setting_pointer_relative")
                 .classList.add("noVNC_hidden");
         }
     },
 
     requestPointerLock() {
         UI.rfb.requestInputLock({ pointer: true });
+    },
+
+    toggleRelativePointer() {
+        if (document.getElementById("noVNC_setting_pointer_relative").checked == true) {
+            UI.rfb.pointerRelative = true;
+            // enable pointer lock if it is not already enabled
+            var pointer_lock_el = document.getElementById("noVNC_setting_pointer_lock");
+            if (!pointer_lock_el.checked) {
+                pointer_lock_el.click();
+            }
+        } else {
+            // disable pointer lock if it is not already disabled
+            var pointer_lock_el = document.getElementById("noVNC_setting_pointer_lock");
+            if (!pointer_lock_el.checked) {
+                pointer_lock_el.click();
+            } else {
+                UI.rfb.pointerRelative = false;
+            }
+        }
     },
 
 /* ------^-------
@@ -1992,14 +2025,17 @@ const UI = {
     },
 
     inputLockChanged(e) {
+        var pointer_lock_el = document.getElementById("noVNC_setting_pointer_lock");
+        var pointer_rel_el = document.getElementById("noVNC_setting_pointer_relative");
+
         if (e.detail.pointer) {
-            document
-                .getElementById("noVNC_pointer_lock_button")
-                .classList.add("noVNC_selected");
+            pointer_lock_el.checked = true;
+            UI.closeControlbar();
+            UI.showStatus('Press Esc Key to Exit Pointer Lock Mode', 'warn', 5000, true);
         } else {
-            document
-                .getElementById("noVNC_pointer_lock_button")
-                .classList.remove("noVNC_selected");
+            pointer_lock_el.checked = false;
+            pointer_rel_el.checked = false;
+            UI.rfb.pointerRelative = false;
         }
     },
 

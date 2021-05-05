@@ -42,7 +42,7 @@ var _videoQuality =  2;
 var _enableWebP = false;
 
 // Minimum wait (ms) between two mouse moves
-const MOUSE_MOVE_DELAY = 17;
+const MOUSE_MOVE_DELAY = 5; // noVNC upstream 17
 
 // Wheel thresholds
 const WHEEL_STEP = 50; // Pixels needed for one step
@@ -177,7 +177,6 @@ export default class RFB extends EventTargetMixin {
         this._mouseLastMoveTime = 0;
         this._pointerLock = false;
         this._pointerLockPos = { x: 0, y: 0 };
-        this._pointerRelative = 0; // 0 auto, 1 off, 2 on
         this._pointerRelativeEnabled = false;
         this._viewportDragging = false;
         this._viewportDragPos = {};
@@ -344,16 +343,13 @@ export default class RFB extends EventTargetMixin {
     get videoQuality() { return this._videoQuality; }
     set videoQuality(quality) { this._videoQuality = quality; }
 
-    get pointerRelative() { return this._pointerRelative; }
+    get pointerRelative() { return this._pointerRelativeEnabled; }
     set pointerRelative(value) 
     { 
-        this._pointerRelative = value;
-        //Any change other than static on, results in resetting 
-        //Auto will need to recieve another server side cursor update to re-enable
-        this._pointerRelativeEnabled = (value == 2);
-        if (value == 2) {
-            this._pointerLockPos.x = this._fbWidth / 2;
-            this._pointerLockPos.y = this._fbHeight / 2;
+        this._pointerRelativeEnabled = value; 
+        if (value) {
+            this._pointerLockPos.x = Math.floor(this._fbWidth / 2);
+            this._pointerLockPos.y = Math.floor(this._fbHeight / 2);
 
             // reset the cursor position to center
             this._mousePos = { x: this._pointerLockPos.x , y: this._pointerLockPos.y };
@@ -1054,7 +1050,7 @@ export default class RFB extends EventTargetMixin {
         }
 
         let pos;
-        if (this._pointerLock) {
+        if (this._pointerLock && !this._pointerRelativeEnabled) {
             pos = {
                 x: this._mousePos.x + ev.movementX,
                 y: this._mousePos.y + ev.movementY,
@@ -1069,7 +1065,7 @@ export default class RFB extends EventTargetMixin {
             } else if (pos.y > this._fbHeight) {
                 pos.y = this._fbHeight;
             }
-            //this._cursor.move(pos.x, pos.y);
+            this._cursor.move(pos.x, pos.y);
         } else if (this._pointerRelativeEnabled) {
             pos = {
                 x: this._mousePos.x + ev.movementX,
@@ -2627,48 +2623,6 @@ export default class RFB extends EventTargetMixin {
     _handleVMwareCursorPosition() {
         const x = this._FBU.x;
         const y = this._FBU.y;
-
-        console.log("PointerLock: " + x + "x" + y);
-
-        // If enabling relative cursor is set to auto (0) look for server side cursor updates
-        if (this._pointerRelative == 0) 
-        {
-            if (this._pointerRelativeEnabled) {
-                // disable if the cursor was repositioned roughly lower right corner
-                if (x > (this._fbWidth -5) && y > (this._fbHeight - 5))
-                {
-                    this._pointerRelativeEnabled = false;
-                    console.log("Relative cursor disabled");
-                }
-            } 
-            else 
-            {
-                var center_x = Math.floor(this._fbWidth / 2);
-                var center_y = Math.floor(this._fbHeight / 2);
-                if ( x > (center_x - 50) && x < (center_x + 50) && y > (center_y - 50) && y < (center_y + 50)) 
-                {
-                    this._pointerRelativeEnabled = true;
-                    this._pointerLockPos.x = center_x;
-                    this._pointerLockPos.y = center_y;
-
-                    // reset the cursor position to center
-                    this._mousePos = { x: this._pointerLockPos.x , y: this._pointerLockPos.y };
-                    this._cursor.move(this._pointerLockPos.x, this._pointerLockPos.y);
-
-                    console.log("Relative cursor Enabled");
-                    return true;
-                }
-            }
-            
-        }
-
-        //TODO: Testing only, do not merge
-        //this._pointerLockPos = { x: x, y: y };
-        //this._cursor.move(x, y);
-        //this._pointerLock = true;
-        
-        //return true;
-
 
         if (this._pointerLock) {
             // Only attempt to match the server's pointer position if we are in
