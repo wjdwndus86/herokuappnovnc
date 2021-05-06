@@ -42,7 +42,7 @@ var _videoQuality =  2;
 var _enableWebP = false;
 
 // Minimum wait (ms) between two mouse moves
-const MOUSE_MOVE_DELAY = 5; // noVNC upstream 17
+const MOUSE_MOVE_DELAY = 17; 
 
 // Wheel thresholds
 const WHEEL_STEP = 50; // Pixels needed for one step

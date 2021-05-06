@@ -1431,6 +1431,12 @@ const UI = {
                 case 'setvideoquality':
                     UI.rfb.videoQuality = event.data.value;
                     break;
+                case 'pointergamemode':
+                    document.getElementById("noVNC_setting_pointer_relative").click();
+                    break;
+                case 'pointerlock':
+                    document.getElementById("noVNC_setting_pointer_lock").click();
+                    break;
             }
         }
     },
@@ -1607,10 +1613,6 @@ const UI = {
         // AND in fullscreen.
         if (
             UI.connected &&
-            (document.fullscreenElement || // alternative standard method
-            document.mozFullScreenElement || // currently working methods
-            document.webkitFullscreenElement ||
-            document.msFullscreenElement) &&
             (document.pointerLockElement !== undefined ||
                 document.mozPointerLockElement !== undefined)
         ) {
