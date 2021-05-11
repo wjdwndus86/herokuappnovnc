@@ -1307,6 +1307,26 @@ const UI = {
                 }
             }, true);
         }
+
+        var gameDelta = 500;
+        var lastGameKeypressTime = 0;
+        document.addEventListener(
+          "keyup",
+          (event) => {
+            const keyName = event.key;
+            if (keyName === "~") {
+              console.log(event.keyCode);
+              let thisKeypressTime = new Date();
+              console.log(thisKeypressTime - lastGameKeypressTime  <= gameDelta);
+              if (thisKeypressTime - lastGameKeypressTime <= gameDelta) {
+                document.getElementById("noVNC_setting_pointer_relative").click();
+                thisKeypressTime = 0;
+              }
+              lastGameKeypressTime = thisKeypressTime;
+            }
+          },
+          true
+        );
     },
 
     disconnect() {
