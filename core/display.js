@@ -11,10 +11,12 @@ import Base64 from "./base64.js";
 import { toSigned32bit } from './util/int.js';
 
 export default class Display {
-    constructor(target) {
+    constructor(target, video) {
         this._drawCtx = null;
 
         this._renderQ = [];  // queue drawing actions for in-oder rendering
+        this._videoQ = [];
+        this._safeToAdd = false;
         this._flushing = false;
 
         // the full frame buffer (logical canvas) size
@@ -27,6 +29,35 @@ export default class Display {
 
         // The visible canvas
         this._target = target;
+        this._video = video;
+
+        window.MediaSource = window.MediaSource || window.WebKitMediaSource;
+        if (!window.MediaSource) {
+            throw new Error("MediaSource not supported");
+        }
+        this._mediaSource = new window.MediaSource();
+        this._video.src = URL.createObjectURL(this._mediaSource);
+
+        this._mediaSource.addEventListener('error', function(err) {
+            throw new Error("MSE: " + err.message);
+        });
+
+        this._mediaSource.addEventListener('sourceopen', function () {
+            this._sourceBuffer = this._mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+            this._mediaSource.duration = Infinity;
+            this._safeToAdd = true;
+
+            this._sourceBuffer.addEventListener('error', function(err) {
+                //throw new Error("SourceBuffer: " + err.message);
+            });
+            this._sourceBuffer.addEventListener('updateend', function() {
+                if (this._videoQ.length == 0) {
+                    this._safeToAdd = true;
+                } else {
+                    this._sourceBuffer.appendBuffer(this._videoQ.shift());
+                }
+            }.bind(this));
+        }.bind(this));
 
         if (!this._target) {
             throw new Error("Target must be set");
@@ -196,6 +227,11 @@ export default class Display {
         this._fbWidth = width;
         this._fbHeight = height;
 
+        this._video.width = width;
+        this._video.style.width = width + 'px';
+        this._video.height = height;
+        this._video.style.height = height + 'px';
+
         const canvas = this._backbuffer;
         if (canvas.width !== width || canvas.height !== height) {
 
@@ -237,6 +273,19 @@ export default class Display {
         }
         if ((y + h) > this._damageBounds.bottom) {
             this._damageBounds.bottom = y + h;
+        }
+    }
+
+    restoreCanvas() {
+        // Hide the video, show the canvas, and copy the last video data to the canvas
+        if (this._target.style.display == 'none') {
+            this._target.style.display = 'block';
+            this._video.style.display = 'none';
+            this._video.pause();
+            this._renderQ.length = 0;
+
+            this._drawCtx.drawImage(this._video, 0, 0, this._fb_width, this._fb_height);
+            this.flip();
         }
     }
 
@@ -345,6 +394,32 @@ export default class Display {
                                     oldX, oldY, w, h,
                                     newX, newY, w, h);
             this._damage(newX, newY, w, h);
+        }
+    }
+
+    videoRect(arr) {
+        this._video.style.display = 'block';
+        this._target.style.display = 'none';
+
+        if (this._sourceBuffer.mode == 'segments') {
+            this._sourceBuffer.mode = 'sequence';
+        }
+
+        if (this._safeToAdd) {
+            this._sourceBuffer.appendBuffer(arr);
+            this._safeToAdd = false;
+        } else {
+            this._videoQ.push(arr);
+        }
+
+        this._video.play();
+        this._video.focus();
+
+        if (this._video.buffered.length) {
+            let end = this._video.buffered.end(this._video.buffered.length - 1);
+            let offset = end - this._video.currentTime;
+            if (offset > 0.05)
+                this._video.currentTime = end;
         }
     }
 

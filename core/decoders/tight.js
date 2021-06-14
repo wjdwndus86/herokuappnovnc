@@ -47,6 +47,10 @@ export default class TightDecoder {
 
         let ret;
 
+        if (this._ctl !== 0x0C) {
+            display.restoreCanvas();
+        }
+
         if (this._ctl === 0x08) {
             ret = this._fillRect(x, y, width, height,
                                  sock, display, depth);
@@ -61,6 +65,9 @@ export default class TightDecoder {
                                   sock, display, depth);
         } else if (this._ctl === 0x0B) {
             ret = this._webpRect(x, y, width, height,
+                                sock, display, depth);
+        } else if (this._ctl === 0x0C) {
+            ret = this._h264Rect(x, y, width, height,
                                 sock, display, depth);
         } else {
             throw new Error("Illegal tight compression received (ctl: " +
@@ -107,6 +114,17 @@ export default class TightDecoder {
         }
 
         display.imageRect(x, y, width, height, "image/webp", data);
+
+        return true;
+    }
+
+    _h264Rect(x, y, width, height, sock, display, depth) {
+        let data = this._readData(sock);
+        if (data === null) {
+            return false;
+        }
+
+        display.videoRect(data);
 
         return true;
     }
