@@ -37,6 +37,12 @@ export default class Display {
         }
         this._mediaSource = new window.MediaSource();
         this._video.src = URL.createObjectURL(this._mediaSource);
+	this._video.play()
+	this._video.focus()
+
+        this._video.addEventListener('pause', function() {
+            console.info('video paused');
+	});
 
         this._mediaSource.addEventListener('error', function(err) {
             throw new Error("MSE: " + err.message);
@@ -51,11 +57,12 @@ export default class Display {
                 //throw new Error("SourceBuffer: " + err.message);
             });
             this._sourceBuffer.addEventListener('updateend', function() {
-                if (this._videoQ.length == 0) {
-                    this._safeToAdd = true;
-                } else {
-                    this._sourceBuffer.appendBuffer(this._videoQ.shift());
-                }
+		this.addVideoBuffer();
+		//if (this._videoQ.length == 0) {
+                //    this._safeToAdd = true;
+                //} else {
+                //    this._sourceBuffer.appendBuffer(this._videoQ.shift());
+                //}
             }.bind(this));
         }.bind(this));
 
@@ -397,14 +404,36 @@ export default class Display {
         }
     }
 
+    addVideoBuffer() {
+        if (!this._videoQ.length) return console.error("segments empty");
+        if (this._sourceBuffer.updating) return console.error("buffer updating");
+
+        var segment = this._videoQ.shift();
+        console.info("appendBuffer", segment.length);
+        this._sourceBuffer.appendBuffer(segment);
+    }
+
     videoRect(arr) {
         this._video.style.display = 'block';
         this._target.style.display = 'none';
 
         if (this._sourceBuffer.mode == 'segments') {
             this._sourceBuffer.mode = 'sequence';
-        }
+        } 
 
+	this._videoQ.push(arr);
+	this.addVideoBuffer();
+	
+	/*
+	if (!this._sourceBuffer.updating) {
+	    this._sourceBuffer.appendBuffer(this._videoQ.shift());
+	} else {
+	    console.log("Video buffered");
+	    this._playing = false;
+	    return;
+	}
+
+	
         if (this._safeToAdd) {
             this._sourceBuffer.appendBuffer(arr);
             this._safeToAdd = false;
@@ -412,8 +441,12 @@ export default class Display {
             this._videoQ.push(arr);
         }
 
-        this._video.play();
-        this._video.focus();
+	if (this._playing == null || !this._playing) {
+            this._video.play();
+            this._video.focus();
+	    this._playing = true;
+	}
+	
 
         if (this._video.buffered.length) {
             let end = this._video.buffered.end(this._video.buffered.length - 1);
@@ -421,6 +454,7 @@ export default class Display {
             if (offset > 0.05)
                 this._video.currentTime = end;
         }
+	    */
     }
 
     imageRect(x, y, width, height, mime, arr) {
