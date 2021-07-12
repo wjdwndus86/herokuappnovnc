@@ -209,10 +209,11 @@ export default class RFB extends EventTargetMixin {
         this._canvas.style.margin = 'auto';
         // Some browsers add an outline on focus
         this._canvas.style.outline = 'none';
+	this._canvas.style.position = 'absolute';
         this._canvas.width = 0;
         this._canvas.height = 0;
         this._canvas.tabIndex = -1;
-        this._screen.appendChild(this._canvas);
+        //this._screen.appendChild(this._canvas);
 
         this._video = document.createElement('video');
         this._video.style.display = 'none';
@@ -220,7 +221,8 @@ export default class RFB extends EventTargetMixin {
         this._video.style.height = '100%';
         this._video.controls = false;
         this._video.muted = true; // So FF and Chrome let us autoplay
-        this._target.appendChild(this._video);
+        this._screen.appendChild(this._video);
+	this._screen.appendChild(this._canvas);
 
         // Cursor
         this._cursor = new Cursor();

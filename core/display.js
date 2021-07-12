@@ -409,13 +409,16 @@ export default class Display {
         if (this._sourceBuffer.updating) return console.error("buffer updating");
 
         var segment = this._videoQ.shift();
-        console.info("appendBuffer", segment.length);
+        //console.info("appendBuffer", segment.length);
         this._sourceBuffer.appendBuffer(segment);
     }
 
-    videoRect(arr) {
-        this._video.style.display = 'block';
-        this._target.style.display = 'none';
+    videoRect(arr) { 
+	if (this._video.style.display == 'none') {
+            this._video.style.display = 'block';
+	    //clear the canvas, transparent to video element behind
+	    this._target.width = this._target.width;
+        }
 
         if (this._sourceBuffer.mode == 'segments') {
             this._sourceBuffer.mode = 'sequence';
@@ -424,37 +427,6 @@ export default class Display {
 	this._videoQ.push(arr);
 	this.addVideoBuffer();
 	
-	/*
-	if (!this._sourceBuffer.updating) {
-	    this._sourceBuffer.appendBuffer(this._videoQ.shift());
-	} else {
-	    console.log("Video buffered");
-	    this._playing = false;
-	    return;
-	}
-
-	
-        if (this._safeToAdd) {
-            this._sourceBuffer.appendBuffer(arr);
-            this._safeToAdd = false;
-        } else {
-            this._videoQ.push(arr);
-        }
-
-	if (this._playing == null || !this._playing) {
-            this._video.play();
-            this._video.focus();
-	    this._playing = true;
-	}
-	
-
-        if (this._video.buffered.length) {
-            let end = this._video.buffered.end(this._video.buffered.length - 1);
-            let offset = end - this._video.currentTime;
-            if (offset > 0.05)
-                this._video.currentTime = end;
-        }
-	    */
     }
 
     imageRect(x, y, width, height, mime, arr) {
