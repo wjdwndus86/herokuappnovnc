@@ -285,8 +285,8 @@ export default class Display {
 
     restoreCanvas() {
         // Hide the video, show the canvas, and copy the last video data to the canvas
-        if (this._target.style.display == 'none') {
-            this._target.style.display = 'block';
+        if (this._video.style.display !== 'none') {
+            
             this._video.style.display = 'none';
             this._video.pause();
             this._renderQ.length = 0;
@@ -415,6 +415,15 @@ export default class Display {
 
     videoRect(arr) { 
 	if (this._video.style.display == 'none') {
+	    console.log('Startv ready states: ' + this._video.readyState + ' ' + this._mediaSource.readyState);
+            console.log('Startv sourebuf: ' + this._sourceBuffer.mode + ' ' + this._sourceBuffer.updating + ' ' + this._sourceBuffer.buffered.length);
+            if (this._video.readyState == 2 && this._sourceBuffer.buffered.length == 1) {
+                console.log('Reseting media source');
+                this._video.play();
+		//this._sourceBuffer.remove(this._sourceBuffer.buffered.start(0), this._sourceBuffer.buffered.end(0));
+                console.log('Removed buffered segments');
+            }
+
             this._video.style.display = 'block';
 	    //clear the canvas, transparent to video element behind
 	    this._target.width = this._target.width;
