@@ -37,7 +37,14 @@ export default class Display {
         }
         this._mediaSource = new window.MediaSource();
         this._video.src = URL.createObjectURL(this._mediaSource);
-	this._video.play()
+	var playp = this._video.play()
+	if (playp !== undefined) {
+            playp.then(_ => {
+		console.log('video play started');
+	    }).catch(error => {
+		console.log('video play failed: ' + error);
+	    });
+	}
 	this._video.focus()
 
         this._video.addEventListener('pause', function() {
@@ -49,20 +56,17 @@ export default class Display {
         });
 
         this._mediaSource.addEventListener('sourceopen', function () {
-            this._sourceBuffer = this._mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+            console.info('mediaSource open');
+	    this._sourceBuffer = this._mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+	    this._sourceBuffer.mode = 'sequence';
             this._mediaSource.duration = Infinity;
             this._safeToAdd = true;
 
             this._sourceBuffer.addEventListener('error', function(err) {
-                //throw new Error("SourceBuffer: " + err.message);
+                console.log("SourceBuffer: " + err.message);
             });
             this._sourceBuffer.addEventListener('updateend', function() {
 		this.addVideoBuffer();
-		//if (this._videoQ.length == 0) {
-                //    this._safeToAdd = true;
-                //} else {
-                //    this._sourceBuffer.appendBuffer(this._videoQ.shift());
-                //}
             }.bind(this));
         }.bind(this));
 
@@ -288,7 +292,9 @@ export default class Display {
         if (this._video.style.display !== 'none') {
             
             this._video.style.display = 'none';
-            this._video.pause();
+            //this._video.pause();
+            //this._video.load();
+	    this.reinit_video();
             this._renderQ.length = 0;
 
             this._drawCtx.drawImage(this._video, 0, 0, this._fb_width, this._fb_height);
@@ -409,19 +415,74 @@ export default class Display {
         if (this._sourceBuffer.updating) return console.error("buffer updating");
 
         var segment = this._videoQ.shift();
-        //console.info("appendBuffer", segment.length);
+        //console.info("appendBuffer called");
         this._sourceBuffer.appendBuffer(segment);
+    }
+
+    reinit_video() {
+        console.log('reinitializing video');
+
+        this._mediaSource = new window.MediaSource();
+        this._video.src = URL.createObjectURL(this._mediaSource);
+	this._video.load();
+        this._video.focus();
+
+        this._mediaSource.addEventListener('error', function(err) {
+            throw new Error("MSE: " + err.message);
+        });
+
+        this._mediaSource.addEventListener('sourceopen', function () {
+            console.info('mediaSource open');
+            this._sourceBuffer = this._mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+            this._sourceBuffer.mode = 'sequence';
+            this._mediaSource.duration = Infinity;
+            this._safeToAdd = true;
+
+            this._sourceBuffer.addEventListener('error', function(err) {
+                console.log("SourceBuffer: " + JSON.stringify(err));
+            });
+            this._sourceBuffer.addEventListener('updateend', function() {
+                this.addVideoBuffer();
+            }.bind(this));
+
+	    var playp = this._video.play()
+            if (playp !== undefined) {
+                playp.then(_ => {
+                    console.log('video play started');
+                }).catch(error => {
+                    console.log('video play failed: ' + error);
+                });
+            } 
+        }.bind(this));
     }
 
     videoRect(arr) { 
 	if (this._video.style.display == 'none') {
+                        
+	    console.log('Startv times: ' + this._video.duration + ' ' + this._video.currentTime + ' ' + this._video.seekable.length);
 	    console.log('Startv ready states: ' + this._video.readyState + ' ' + this._mediaSource.readyState);
+            console.log('MediaSource State: ' + this._mediaSource.readyState);
             console.log('Startv sourebuf: ' + this._sourceBuffer.mode + ' ' + this._sourceBuffer.updating + ' ' + this._sourceBuffer.buffered.length);
             if (this._video.readyState == 2 && this._sourceBuffer.buffered.length == 1) {
-                console.log('Reseting media source');
-                this._video.play();
+                console.log('Removing staled data in buffer');
 		//this._sourceBuffer.remove(this._sourceBuffer.buffered.start(0), this._sourceBuffer.buffered.end(0));
-                console.log('Removed buffered segments');
+	    }
+	    
+            //if (this._video.readyState > 0) {
+            if (this._mediaSource.readyState == 'closed') {
+		//console.log('Resuming video');
+                //var playp = this._video.play()
+                //if (playp !== undefined) {
+                //    playp.then(_ => {
+                //        console.log('video play started');
+                //    }).catch(error => {
+                //        console.log('video play failed: ' + error);
+                //    });
+                //}
+		//console.log('Startv times: ' + this._video.duration + ' ' + this._video.currentTime + ' ' + this._video.seekable.end(0));
+		//this._video.currentTime = this._video.seekable.end(0);
+		//this._video.load();
+		//this.reinit_video();
             }
 
             this._video.style.display = 'block';
@@ -429,9 +490,9 @@ export default class Display {
 	    this._target.width = this._target.width;
         }
 
-        if (this._sourceBuffer.mode == 'segments') {
-            this._sourceBuffer.mode = 'sequence';
-        } 
+        //if (this._sourceBuffer.mode == 'segments') {
+        //    this._sourceBuffer.mode = 'sequence';
+        //} 
 
 	this._videoQ.push(arr);
 	this.addVideoBuffer();
