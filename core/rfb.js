@@ -44,8 +44,9 @@ var _enableWebP = false;
 const MOUSE_MOVE_DELAY = 17;
 
 // Wheel thresholds
-const WHEEL_STEP = 50; // Pixels needed for one step
-const WHEEL_LINE_HEIGHT = 19; // Assumed pixels for one line step
+const WHEEL_SINGLE_STEP_HEIGHT = 4;
+let WHEEL_STEP = 50; // Pixels needed for one step
+let WHEEL_LINE_HEIGHT = 19; // Assumed default pixels for one line step
 
 // Gesture thresholds
 const GESTURE_ZOOMSENS = 75;
@@ -128,6 +129,7 @@ export default class RFB extends EventTargetMixin {
         this._qemuExtKeyEventSupported = false;
 
         // kasm defaults
+        this._scrollSensitivity = 5;
         this._jpegVideoQuality = 5;
         this._webpVideoQuality = 5;
         this._treatLossless = 7;
@@ -195,6 +197,26 @@ export default class RFB extends EventTargetMixin {
                 }
             }, 10);
         }
+
+        // On Windows it's possible to configure the mouse
+        // to scroll some amount of lines per each notch but
+        // since we operate in pixels, we need to find out
+        // how much one scroll line is in pixels.
+        // Turns out that in all major browsers it corresponds
+        // to the height of the font applied to the page <body> so
+        // we create a dummy <div> with the font size inheriting from
+        // the <body> element and calculate it's resulting height.
+        WHEEL_LINE_HEIGHT = (() => {
+            const el = document.createElement("div");
+            el.style.fontSize = "initial";
+            el.style.display = "none";
+            document.body.appendChild(el);
+
+            const fontSize = window.getComputedStyle(el).fontSize;
+            document.body.removeChild(el);
+
+            return parseInt(fontSize) || WHEEL_LINE_HEIGHT;
+        })();
 
         // Gesture state
         this._gestureLastTapTime = null;
@@ -374,6 +396,12 @@ export default class RFB extends EventTargetMixin {
 
     get touchButton() { return 0; }
     set touchButton(button) { Log.Warn("Using old API!"); }
+
+    get scrollSensitivity() { return this._scrollSensitivity; }
+    set scrollSensitivity(value) {
+        this._scrollSensitivity = Math.max(1, Math.min(value, 10));
+        WHEEL_STEP = (WHEEL_SINGLE_STEP_HEIGHT * 10 / this._scrollSensitivity);
+    }
 
     get clipViewport() { return this._clipViewport; }
     set clipViewport(viewport) {
