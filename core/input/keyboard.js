@@ -133,6 +133,17 @@ export default class Keyboard {
             return;
         }
 
+        // Translate MacOs CMD based shortcuts to their CTRL based counterpart
+        const SHORTCUT_KEYS = ["KeyA", "KeyX", "KeyC", "KeyV", "KeyF"];
+
+        if (browser.isMac() && e.metaKey && SHORTCUT_KEYS.includes(code)) {
+            this._sendKeyEvent(this._keyDownList["MetaLeft"], "MetaLeft", false);
+            this._sendKeyEvent(KeyTable.XK_Control_L, "ControlLeft", true);
+            this._sendKeyEvent(keysym, code, true);
+            stopEvent(e);
+            return;
+        }
+
         // Alt behaves more like AltGraph on macOS, so shuffle the
         // keys around a bit to make things more sane for the remote
         // server. This method is used by RealVNC and TigerVNC (and
