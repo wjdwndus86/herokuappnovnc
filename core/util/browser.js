@@ -101,3 +101,10 @@ export function isFirefox() {
     return navigator && !!(/firefox/i).exec(navigator.userAgent);
 }
 
+export function isEdge() {
+    return navigator && !!(/edg/i.exec(navigator.userAgent));
+}
+
+export function isChrome() {
+    return navigator && !!(/chrome/i.exec(navigator.userAgent));
+}

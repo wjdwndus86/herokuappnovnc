@@ -10,7 +10,7 @@
 import { toUnsigned32bit, toSigned32bit } from './util/int.js';
 import * as Log from './util/logging.js';
 import { encodeUTF8, decodeUTF8 } from './util/strings.js';
-import { dragThreshold, supportsCursorURIs, isTouchDevice, isWindows, isMac } from './util/browser.js';
+import { dragThreshold, supportsCursorURIs, isTouchDevice, isWindows, isMac, isEdge, isChrome, isFirefox } from './util/browser.js';
 import { clientToElement } from './util/element.js';
 import { setCapture } from './util/events.js';
 import EventTargetMixin from './util/eventtarget.js';
@@ -45,6 +45,9 @@ const MOUSE_MOVE_DELAY = 17;
 
 // Wheel thresholds
 let WHEEL_LINE_HEIGHT = 19; // Pixels for one line step (on Windows)
+
+let WHEEL_SCROLL_VALUATOR_H = 50;
+let WHEEL_SCROLL_VALUATOR_V = 50;
 
 // Gesture thresholds
 const GESTURE_ZOOMSENS = 75;
@@ -181,6 +184,24 @@ export default class RFB extends EventTargetMixin {
         this._viewportHasMoved = false;
         this._accumulatedWheelDeltaX = 0;
         this._accumulatedWheelDeltaY = 0;
+
+        // The wheel event implementation is browser specific so the
+        // delta values we are sending with each event for smooth scrolling
+        // will most likely vary between host and remote browsers leading
+        // to a "jagged" scroll. As a workaround, we are also sending the scroll factor
+        // that should be taken into account when handling the event (as a device valuator).
+        if (isWindows()) {
+            if (isEdge()) {
+                WHEEL_SCROLL_VALUATOR_H = 540;
+                WHEEL_SCROLL_VALUATOR_V = 540;
+            } else if (isFirefox()) {
+                WHEEL_SCROLL_VALUATOR_H = 80;
+                WHEEL_SCROLL_VALUATOR_V = 80;
+            } else if (isChrome()) {
+                WHEEL_SCROLL_VALUATOR_V = 300;
+                WHEEL_SCROLL_VALUATOR_V = 300;
+            }
+        }
 
         // Gesture state
         this._gestureLastTapTime = null;
@@ -3023,7 +3044,13 @@ RFB.messages = {
         buff[offset + 8] = dY >> 8;
         buff[offset + 9] = dY;
 
-        sock._sQlen += 10;
+        buff[offset + 10] = WHEEL_SCROLL_VALUATOR_H >> 8;
+        buff[offset + 11] = WHEEL_SCROLL_VALUATOR_H;
+
+        buff[offset + 12] = WHEEL_SCROLL_VALUATOR_V >> 8;
+        buff[offset + 13] = WHEEL_SCROLL_VALUATOR_V;
+
+        sock._sQlen += 14;
         sock.flush();
     },
 
