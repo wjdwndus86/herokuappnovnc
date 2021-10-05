@@ -135,7 +135,7 @@ export default class Keyboard {
         }
 
         // Translate MacOs CMD based shortcuts to their CTRL based counterpart
-        if (browser.isMac() && UI.rfb.translateShortcuts && code !== "MetaLeft" && e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (browser.isMac() && UI.rfb && UI.rfb.translateShortcuts && code !== "MetaLeft" && e.metaKey && !e.ctrlKey && !e.altKey) {
             this._sendKeyEvent(this._keyDownList["MetaLeft"], "MetaLeft", false);
             this._sendKeyEvent(KeyTable.XK_Control_L, "ControlLeft", true);
             this._sendKeyEvent(keysym, code, true);
