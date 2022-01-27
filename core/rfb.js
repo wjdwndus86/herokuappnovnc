@@ -765,7 +765,7 @@ export default class RFB extends EventTargetMixin {
 
         let h = hashUInt8Array(data);
         // avoid resending the same data if larger than 64k
-        if (data.length > 65536 && h === this._clipHash) {
+        if (h === this._clipHash) {
             Log.Debug('No clipboard changes');
             return;
         } else {
@@ -804,7 +804,7 @@ export default class RFB extends EventTargetMixin {
                         if (!h) {
                             h = hashUInt8Array(data);
                             // avoid resending the same data if larger than 64k
-                            if (data.length > 65536 && h === this._clipHash) {
+                            if (h === this._clipHash) {
                                 Log.Debug('No clipboard changes');
                                 return;
                             } else {
