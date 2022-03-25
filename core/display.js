@@ -452,9 +452,11 @@ export default class Display {
                 this._drawCtx.drawImage(img, x, y);
             }
         } catch (error) {
-            Log.Error('Invalid image recieved.'); //KASM-2090
+            Log.Warn('Invalid image received.'); //KASM-2090
+            return false;
         }
         this._damage(x, y, w, h);
+        return true;
     }
 
     autoscale(containerWidth, containerHeight, scaleRatio=0) {

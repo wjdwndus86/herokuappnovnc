@@ -185,6 +185,18 @@ export default class RFB extends EventTargetMixin {
         this._gestureLastMagnitudeX = 0;
         this._gestureLastMagnitudeY = 0;
 
+        // Udp stats
+        this._udpFirstID = null; // First udp mesage id
+        this._updLastID = 0;
+        this._udpPackets = 0; // Total individual packets
+        this._udpDroppedPackets = 0; // Only accounts for multi packet messages where the total count was incomplete
+        this._udpMessages = 0; // Rects sent via UDP
+        this._udpDroppedMessages = 0; // Rects that timed out waiting for all segments
+        this._udpBadMessages = 0; // Messages that failed to process due to bad data
+        this._udpBadRects = [];
+        this._udpLargeMessages = 0;
+        this._udpBadRectInterval = null;
+
         // Bound event handlers
         this._eventHandlers = {
             updateHiddenKeyboard: this._updateHiddenKeyboard.bind(this),
@@ -651,7 +663,12 @@ export default class RFB extends EventTargetMixin {
         }
     }
 
-    get statsFps() { return this._display.fps; }
+    get statsFps() { 
+        //return this._display.fps;
+        let total = this._updLastID - this._udpFirstID;
+        let missing = (total - this._udpMessages);
+        return this._display.fps + " Packets: " + this._udpDroppedPackets + "/" + this._udpPackets + " Messages: " + total + "t/" + missing + "m/" + this._udpBadMessages + "b/" + this._udpDroppedMessages + "d/" + this._udpLargeMessages + "L"; 
+    }
 
     // ===== PUBLIC METHODS =====
 
@@ -945,8 +962,8 @@ export default class RFB extends EventTargetMixin {
             }
 
             this._udpChannel = peer.createDataChannel("webudp", {
-                ordered: false,
-                maxRetransmits: 0
+                ordered: true,
+                maxRetransmits: 2
             });
             this._udpChannel.binaryType = "arraybuffer";
 
@@ -954,10 +971,26 @@ export default class RFB extends EventTargetMixin {
                 Log.Error("data channel error " + e.message);
             }
 
+            //Attempt to keep the screen healthy when bad rects come in
+            this._udpBadRectInterval = setInterval(function() {
+                let i = this._udpBadRects.length;
+                while (i--) {
+                    if (++this._udpBadRects[i].retry_hold > 1) {
+                        let rect = this._udpBadRects[i];
+                        //RFB.messages.fbUpdateRequest(this._sock, true, rect.x, rect.y,
+                        //    rect.width, rect.height);
+                        this._udpBadRects.splice(i, 1);
+                        Log.Info('Replacement rect requested: ' + rect.width + ' h: ' + rect.height);
+                    }
+                }
+            }.bind(this), 500);
+
             let sock = this._sock;
             let udpBuffer = this._udpBuffer;
             let me = this;
+
             this._udpChannel.onmessage = function(e) {
+                me._udpPackets++;
                 //Log.Info("got udp msg", e.data);
                 const u8 = new Uint8Array(e.data);
                 // Got an UDP packet. Do we need reassembly?
@@ -974,11 +1007,15 @@ export default class RFB extends EventTargetMixin {
                                         (u8[10] << 16) +
                                         (u8[11] << 24), 10);
 
+                me._updLastID = id;
+
                 if (pieces == 1) { // Handle it immediately
+                    if (!me._udpFirstID) { me._udpFirstID = id; }
+                    me._udpMessages++;
                     me._handleUdpRect(u8.slice(12));
                 } else { // Insert into wait array
                     const now = Date.now();
-		    
+                    
                     if (udpBuffer.has(id)) {
                         let item = udpBuffer.get(id);
                         if (!item) {
@@ -1001,16 +1038,19 @@ export default class RFB extends EventTargetMixin {
                             me._handleUdpRect(finaldata);
                         }
                     } else {
+                        if (!me._udpFirstID) { me._udpFirstID = id; }
                         let item = {
                             total_pieces: pieces, // number of pieces expected
-                                arrival: now, //time first piece was recieved
+                            arrival: now, //time first piece was recieved
                             recieved_pieces: 1, // current number of pieces in data
                             total_bytes: 0, // total size of all data pieces combined
                             data: new Array(pieces)
                         }
                         item.data[i] = u8.slice(12);
                         item.total_bytes = item.data[i].length;
-                                udpBuffer.set(id, item);
+                        udpBuffer.set(id, item);
+                        me._udpMessages++;
+                        me._udpLargeMessages++;
                     }
                 }
 
@@ -1019,15 +1059,18 @@ export default class RFB extends EventTargetMixin {
                 const now = Date.now();
                 for (const [key, value] of udpBuffer.entries()) {
                     // Drop any messages older than 100ms
-                    if (now - value.arrival > 100) {
+                    if (now - value.arrival > 500) {
                         Log.Info('Removed id: ' + key + ' Buffer size: ' + udpBuffer.size);
                         udpBuffer.delete(key);
+                        me._udpDroppedMessages++;
+                        me._udpDroppedPackets += (value.total_pieces - value.recieved_pieces);
                     }
                 }
 
             }
         }
-
+        
+        setTimeout(function() { this._sendUdpUpgrade() }.bind(this), 3000);
         Log.Debug("<< RFB.connect");
     }
 
@@ -1061,6 +1104,9 @@ export default class RFB extends EventTargetMixin {
         }
         clearTimeout(this._resizeTimeout);
         clearTimeout(this._mouseMoveTimer);
+        if (this._udpBadRectInterval) {
+            clearInterval(this._udpBadRectInterval);
+        }
         Log.Debug("<< RFB.disconnect");
     }
 
@@ -2287,6 +2333,7 @@ export default class RFB extends EventTargetMixin {
         RFB.messages.fbUpdateRequest(this._sock, false, 0, 0, this._fbWidth, this._fbHeight);
 
         this._updateConnectionState('connected');
+        
         return true;
     }
 
@@ -2782,7 +2829,6 @@ export default class RFB extends EventTargetMixin {
                     RFB.messages.sendFrameStats(this._sock, this._display.fps, this._display.renderMs);
                     this._trackFrameStats = false;
                 }
-                
                 return ret;
 
             case 1:  // SetColorMapEntries
@@ -2847,16 +2893,17 @@ export default class RFB extends EventTargetMixin {
     }
 
     _handleUdpRect(data) {
-        let frame = {
+        let rect = {
             x: (data[0] << 8) + data[1],
             y: (data[2] << 8) + data[3],
             width: (data[4] << 8) + data[5],
             height: (data[6] << 8) + data[7],
             encoding: parseInt((data[8] << 24) + (data[9] << 16) +
-                                            (data[10] << 8) + data[11], 10)
+                                            (data[10] << 8) + data[11], 10),
+            retry_hold: 0
         };
 
-        switch (frame.encoding) {
+        switch (rect.encoding) {
             case encodings.pseudoEncodingLastRect:
                 if (document.visibilityState !== "hidden") {
                     this._display.flip();
@@ -2865,17 +2912,36 @@ export default class RFB extends EventTargetMixin {
             case encodings.encodingTight:
                 let decoder = this._decoders[encodings.encodingUDP];
                 try {
-                    decoder.decodeRect(frame.x, frame.y,
-                        frame.width, frame.height,
-                        data, this._display,
-                        this._fbDepth);
+                    let ret = decoder.decodeRect(rect.x, rect.y, rect.width, rect.height, data, this._display, this._fbDepth);
+                    if (!ret) { 
+                        this._udpBadMessages++;
+                        this._udpBadRects.push(rect);
+                    } else {
+                        //remove overlapping bad rects from bad rect tracking
+                        let i = this._udpBadRects.length;
+                        while (i--) {
+                            let brect = this._udpBadRects[i];
+                            if (    
+                                    (
+                                        brect.x >= rect.x && brect.x <= (rect.x + rect.width) &&
+                                        brect.y >= rect.y && brect.y <= (rect.y + rect.height)
+                                    ) || (
+                                        rect.x >= brect.x && rect.x <= (brect.x + brect.width) &&
+                                        rect.y >= brect.y && rect.y <= (brect.y + brect.height)
+                                    )
+                                ) {
+                                //perhaps update to require a threshold of overlap
+                                this._udpBadRects.splice(i, 1);
+                            }
+                        }
+                    }
                 } catch (err) {
                     this._fail("Error decoding rect: " + err);
                     return false;
                 }
                 break;
             default:
-                Log.Error("Invalid rect encoding via UDP: " + frame.encoding);
+                Log.Error("Invalid rect encoding via UDP: " + rect.encoding);
                 return false;
         }
 
@@ -2901,6 +2967,7 @@ export default class RFB extends EventTargetMixin {
 
             sock._sQlen += 3 + str.length;
             sock.flush();
+            Log.Debug("Offer to upgrade to UDP sent.");
         }).catch(function(reason) {
             Log.Error("Failed to create offer " + reason);
         });
@@ -2926,7 +2993,7 @@ export default class RFB extends EventTargetMixin {
         const payload = this._sock.rQshiftStr(len);
 
         let peer = this._udpPeer;
-
+        console.log(payload);
         var response = JSON.parse(payload);
         peer.setRemoteDescription(new RTCSessionDescription(response.answer)).then(function() {
             var candidate = new RTCIceCandidate(response.candidate);

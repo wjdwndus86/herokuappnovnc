@@ -9,6 +9,7 @@
  */
 
 import * as Log from '../util/logging.js';
+import Base64 from "../base64.js";
 import Inflator from "../inflator.js";
 
 export default class UDPDecoder {
@@ -24,29 +25,35 @@ export default class UDPDecoder {
     }
 
     decodeRect(x, y, width, height, data, display, depth) {
-        let ctl = data[12];
-        ctl = ctl >> 4;
-
+        let ctl = data[12] >> 4;
         let ret;
 
         if (ctl === 0x08) {
+            //Log.Debug("Fill Rect");
             ret = this._fillRect(x, y, width, height,
                 data, display, depth);
         } else if (ctl === 0x09) {
+            //Log.Debug("JPEG Rect");
             ret = this._jpegRect(x, y, width, height,
                 data, display, depth);
         } else if (ctl === 0x0A) {
+            //Log.Debug("Png Rect");
             ret = this._pngRect(x, y, width, height,
                 data, display, depth);
         } else if ((ctl & 0x08) == 0) {
+            //Log.Debug("Basic Rect");
             ret = this._basicRect(ctl, x, y, width, height,
                 data, display, depth);
         } else if (ctl === 0x0B) {
+            //Log.Debug("Webp Rect");
             ret = this._webpRect(x, y, width, height,
                 data, display, depth);
         } else {
             throw new Error("Illegal udp compression received (ctl: " +
                 ctl + ")");
+        }
+        if (!ret) {
+            Log.Debug("Bad Rect");
         }
 
         return ret;
@@ -62,13 +69,23 @@ export default class UDPDecoder {
 
     _jpegRect(x, y, width, height, data, display, depth) {
         let img = this._readData(data);
-        if (img === null) {
+        if (img === null) { // || !this._validateJPEG(img)) {
             return false;
+        }
+        //some of our jpegs are missing a byte
+        if (img[img.length - 2] !== 255 && img[img.length -1] == 255) {
+            //let img2 = new Uint8Array(new ArrayBuffer(img.length + 1));
+            //img2.set(img);
+            //img2[img2.length - 1] = 217;
+            Log.Debug('JPEG is corrupt');
+            return false;
+            //return this._imageRect(x, y, width, height, "image/jpeg", img2, display);
+
         }
 
         display.imageRect(x, y, width, height, "image/jpeg", img);
-
         return true;
+        //return this._imageRect(x, y, width, height, "image/jpeg", img, display);
     }
 
     _webpRect(x, y, width, height, data, display, depth) {
@@ -77,23 +94,143 @@ export default class UDPDecoder {
             return false;
         }
 
+        //return this._imageRect(x, y, width, height, "image/webp", img, display);
         display.imageRect(x, y, width, height, "image/webp", img);
+        return true;
+    }
+
+    _imageRect(x, y, width, height, mime, arr, display) {
+        //let blob = new Blob(arr, {'type' : 'image/jpeg'});
+	    //return display.drawImage(URL.createObjectURL(blob), x, y, width, height);
+
+        const img = new Image();
+        img.src = "data: " + mime + ";base64," + Base64.encode(arr);
+
+        if (img.complete) {
+            display.drawImage(img, x, y, width, height);
+            Log.Debug("Image rect drawn immediate");
+        } else {
+            img.addEventListener('load', function() {
+                display.drawImage(img, x, y, width, height);
+                Log.Debug("Image rect drawn delayed");
+            });
+        }
+        
+        return true;
+    }
+
+    _validateJPEG(arr) {
+        //min size
+        if (arr.length < 4) { 
+            return false; 
+        }
+        //SOI
+        if (arr[0] !== 255 || arr[1] !== 216) { 
+            return false; 
+        }
+        //JFIF-APP0 (mandatory)
+        if (arr[2] !== 255 || arr[3] !== 224) { 
+            return false; 
+        }
+        //get len of APP0
+        let applen = parseInt(arr[4] + (arr[5] << 8));
+        // Identifier "JFIF" in ASCII
+        if (arr[6] !== 74 || arr[7] !== 70 || arr[8] !== 73 || arr[9] !== 70 || arr[10] !== 0 ) { 
+            return false; 
+        }
+        // JFIF version, major and minor
+        if (arr[11] !== 1 || arr[12] !== 1) {
+            return false;
+        }
+        let density = arr[13]; //should be 0?
+        let Xdensity = arr[14] + (arr[15] << 8); //should be 256?
+        let Ydensity = arr[16] + (arr[17] << 8); //shoudl be 256?
+
+        //thumbnail
+        if (arr[18] !== 0 || arr[19] !== 0) {
+            return false;
+        }
+
+        let i = 20;
+        while (i < arr.length) {
+            i = this._validateJpegSection(arr, i);
+            if (!i) {
+                return false;
+            } 
+        }
 
         return true;
+    }
+
+    _validateJpegSection(img, index) {
+        //start marker
+        if (img[index++] !== 255) {
+            return false;
+        }
+        let sectionType = img[index++];
+        let sectionStart = index;
+        let sectionLen = parseInt((img[index++] << 8) + img[index++]);
+        let sectionEnd = sectionStart + sectionLen;
+        let dest, hclass, precision, line, samples;
+
+        switch(sectionType) {
+            case 219: //xDB quantization
+                dest = img[index++];
+                
+                break;
+            case 192: //Start of frame
+                precision = parseInt(img[index++] + (img[index++] << 8));
+                line = parseInt(img[index++] + (img[index++] << 8));
+                samples = img[index++];
+                break;
+            case 196: //Huffman table
+                dest = img[index++] >> 4;
+                hclass = (img[index++] << 4) >> 4;
+                break;
+            case 218: //start of scan
+                if (img[sectionEnd - 1] !== 0 || img[sectionEnd - 2] !== 63 || img[sectionEnd - 3] !== 0) {
+                    return false;
+                }
+                //Data until end
+                sectionEnd = img.length - 2;
+
+                //some of our jpegs are missing a byte!
+                if (img[sectionEnd] !== 255 && img[sectionEnd + 1] == 255) {
+                    
+                }
+
+                break;
+            case 217: //end of image
+                if (index == (img.length - 1)) {
+                    return img.length;
+                } else {
+                    return false;
+                }
+            default:
+                return false;
+        }
+
+        if (img[sectionEnd] !== 255) {
+            Log.Warn("JPEG missing one byte")
+            return false;
+        }
+        return sectionEnd;
     }
 
     _pngRect(x, y, width, height, data, display, depth) {
         //throw new Error("PNG received in UDP rect");
         Log.Error("PNG received in UDP rect");
+        return false;
     }
 
     _basicRect(ctl, x, y, width, height, data, display, depth) {
         let zlibs_flags = data[12];
+
         // Reset streams if the server requests it
         for (let i = 0; i < 4; i++) {
             if ((zlibs_flags >> i) & 1) {
                 this._zlibs[i].reset();
-                Log.Info("Reset zlib stream " + i);
+                //Log.Info("Reset zlib stream " + i);
             }
         }
 
@@ -105,15 +242,18 @@ export default class UDPDecoder {
             filter = 0;
             data_index = 13;
         }
+        //Log.Info("basic Rect StreamID: " + streamId);
 
         let ret;
 
         switch (filter) {
             case 0: // CopyFilter
+                //Log.Debug("CopyFilter");
                 ret = this._copyFilter(streamId, x, y, width, height,
                     data, display, depth, data_index);
                 break;
             case 1: // PaletteFilter
+                //Log.Debug("PaletteFilter");
                 ret = this._paletteFilter(streamId, x, y, width, height,
                     data, display, depth);
                 break;
@@ -156,6 +296,8 @@ export default class UDPDecoder {
             rgbx[i + 2] = data[j + 2];
             rgbx[i + 3] = 255;  // Alpha
         }
+
+        //Log.Debug("CopyFilter x: " + x + " y: " + y + " h: " + height + " w: " + width + " rgb: " + data[data.length - 3] + " " + data[data.length - 2] + " " + data[data.length - 1]);
 
         display.blitImage(x, y, width, height, rgbx, 0, false);
 
@@ -200,9 +342,10 @@ export default class UDPDecoder {
     }
 
     _monoRect(x, y, width, height, data, palette, display) {
+        Log.Debug("mono rect");
         // Convert indexed (palette based) image data to RGB
         // TODO: reduce number of calculations inside loop
-        const dest = this._getScratchBuffer(width * height * 4);
+        const dest = new Uint8Array(width * height * 4);
         const w = Math.floor((width + 7) / 8);
         const w1 = Math.floor(width / 8);
 
@@ -229,12 +372,15 @@ export default class UDPDecoder {
             }
         }
 
+        //Log.Debug("MonoRect x: " + x + " y: " + y + " h: " + height + " w: " + width + " rgb: " + data[data.length - 3] + " " + data[data.length - 2] + " " + data[data.length - 1]);
         display.blitImage(x, y, width, height, dest, 0, false);
+
+        return true;
     }
 
     _paletteRect(x, y, width, height, data, palette, display) {
         // Convert indexed (palette based) image data to RGB
-        const dest = this._getScratchBuffer(width * height * 4);
+        const dest = new Uint8Array(width * height * 4);
         const total = width * height * 4;
         for (let i = 0, j = 0; i < total; i += 4, j++) {
             const sp = data[j] * 3;
@@ -244,7 +390,10 @@ export default class UDPDecoder {
             dest[i + 3] = 255;
         }
 
+        //Log.Debug("PaletteRect x: " + x + " y: " + y + " h: " + height + " w: " + width + " rgb: " + dest[dest.length - 3] + " " + dest[dest.length - 2] + " " + dest[dest.length - 1]);
         display.blitImage(x, y, width, height, dest, 0, false);
+
+        return true;
     }
 
     _gradientFilter(streamId, x, y, width, height, data, display, depth) {
@@ -273,11 +422,12 @@ export default class UDPDecoder {
 
         //TODO: get rid of me
         if (data.length !== len + i) {
-            console.log('Rect of size ' + len + ' with data size ' + data.length + ' index of ' + i);
+            Log.Error('Invalid data, rect of size ' + len + ' with data size ' + data.length + ' index of ' + i);
+            return null;
         }
         
 
-        return data.slice(i, data.length - 1);
+        return data.slice(i);
     }
 
     _getScratchBuffer(size) {
