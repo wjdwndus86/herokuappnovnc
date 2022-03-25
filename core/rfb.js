@@ -136,7 +136,7 @@ export default class RFB extends EventTargetMixin {
         this._maxVideoResolutionX = 960;
         this._maxVideoResolutionY = 540;
         this._clipboardBinary = true;
-        this._useUdp = false;
+        this._useUdp = true;
 
         this._trackFrameStats = false;
 
@@ -999,20 +999,24 @@ export default class RFB extends EventTargetMixin {
                                     (u8[2] << 16) +
                                     (u8[3] << 24), 10);
                 const i = parseInt(u8[4] +
-                                   (u8[5] << 8) +
-                                   (u8[6] << 16) +
-                                   (u8[7] << 24), 10);
+                                    (u8[5] << 8) +
+                                    (u8[6] << 16) +
+                                    (u8[7] << 24), 10);
                 const pieces = parseInt(u8[8] +
-                                        (u8[9] << 8) +
-                                        (u8[10] << 16) +
-                                        (u8[11] << 24), 10);
+                                    (u8[9] << 8) +
+                                    (u8[10] << 16) +
+                                    (u8[11] << 24), 10);
+                const hash = parseInt(u8[12] +
+                                    (u8[13] << 8) +
+                                    (u8[14] << 16) +
+                                    (u8[15] << 24), 10);
 
                 me._updLastID = id;
 
                 if (pieces == 1) { // Handle it immediately
                     if (!me._udpFirstID) { me._udpFirstID = id; }
                     me._udpMessages++;
-                    me._handleUdpRect(u8.slice(12));
+                    me._handleUdpRect(u8.slice(16));
                 } else { // Insert into wait array
                     const now = Date.now();
                     
@@ -1023,7 +1027,7 @@ export default class RFB extends EventTargetMixin {
                             return;
                         }
                         item.recieved_pieces += 1;
-                        item.data[i] = u8.slice(12);
+                        item.data[i] = u8.slice(16);
                         item.total_bytes += item.data[i].length;
 
                         if (item.total_pieces == item.recieved_pieces) {
@@ -1046,7 +1050,7 @@ export default class RFB extends EventTargetMixin {
                             total_bytes: 0, // total size of all data pieces combined
                             data: new Array(pieces)
                         }
-                        item.data[i] = u8.slice(12);
+                        item.data[i] = u8.slice(16);
                         item.total_bytes = item.data[i].length;
                         udpBuffer.set(id, item);
                         me._udpMessages++;
@@ -1060,7 +1064,6 @@ export default class RFB extends EventTargetMixin {
                 for (const [key, value] of udpBuffer.entries()) {
                     // Drop any messages older than 100ms
                     if (now - value.arrival > 500) {
-                        Log.Info('Removed id: ' + key + ' Buffer size: ' + udpBuffer.size);
                         udpBuffer.delete(key);
                         me._udpDroppedMessages++;
                         me._udpDroppedPackets += (value.total_pieces - value.recieved_pieces);
@@ -1070,7 +1073,10 @@ export default class RFB extends EventTargetMixin {
             }
         }
         
-        setTimeout(function() { this._sendUdpUpgrade() }.bind(this), 3000);
+        if (this._useUdp) {
+            setTimeout(function() { this._sendUdpUpgrade() }.bind(this), 3000);
+        }
+        
         Log.Debug("<< RFB.connect");
     }
 

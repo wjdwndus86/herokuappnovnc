@@ -64,6 +64,8 @@ export default class UDPDecoder {
         display.fillRect(x, y, width, height,
             [data[13], data[14], data[15]], false);
 
+            Log.Debug("FillRect x: " + x + " y: " + y + " h: " + height + " w: " + width + " rgb: " + data[13] + " " + data[14] + " " + data[15]);
+
         return true;
     }
 
@@ -297,7 +299,7 @@ export default class UDPDecoder {
             rgbx[i + 3] = 255;  // Alpha
         }
 
-        //Log.Debug("CopyFilter x: " + x + " y: " + y + " h: " + height + " w: " + width + " rgb: " + data[data.length - 3] + " " + data[data.length - 2] + " " + data[data.length - 1]);
+        Log.Debug("CopyFilter x: " + x + " y: " + y + " h: " + height + " w: " + width + " rgb: " + data[data.length - 3] + " " + data[data.length - 2] + " " + data[data.length - 1]);
 
         display.blitImage(x, y, width, height, rgbx, 0, false);
 
@@ -307,7 +309,7 @@ export default class UDPDecoder {
     _paletteFilter(streamId, x, y, width, height, data, display, depth) {
         const numColors = data[14] + 1;
         const paletteSize = numColors * 3;
-        let palette = data.slice(15, 15 + paletteSize);
+        let palette = data.slice(15, 15 + paletteSize + 1);
 
         const bpp = (numColors <= 2) ? 1 : 8;
         const rowSize = Math.floor((width * bpp + 7) / 8);
@@ -372,8 +374,8 @@ export default class UDPDecoder {
             }
         }
 
-        //Log.Debug("MonoRect x: " + x + " y: " + y + " h: " + height + " w: " + width + " rgb: " + data[data.length - 3] + " " + data[data.length - 2] + " " + data[data.length - 1]);
-        display.blitImage(x, y, width, height, dest, 0, false);
+        Log.Debug("MonoRect x: " + x + " y: " + y + " h: " + height + " w: " + width + " rgb: " + data[data.length - 3] + " " + data[data.length - 2] + " " + data[data.length - 1]);
+        display.blitImage(x, y, width, height, dest, 0, true);
 
         return true;
     }
@@ -390,8 +392,8 @@ export default class UDPDecoder {
             dest[i + 3] = 255;
         }
 
-        //Log.Debug("PaletteRect x: " + x + " y: " + y + " h: " + height + " w: " + width + " rgb: " + dest[dest.length - 3] + " " + dest[dest.length - 2] + " " + dest[dest.length - 1]);
-        display.blitImage(x, y, width, height, dest, 0, false);
+        Log.Debug("PaletteRect x: " + x + " y: " + y + " h: " + height + " w: " + width + " rgb: " + dest[dest.length - 3] + " " + dest[dest.length - 2] + " " + dest[dest.length - 1]);
+        display.blitImage(x, y, width, height, dest, 0, true);
 
         return true;
     }
