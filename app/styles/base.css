@@ -369,7 +369,8 @@ select:active {
 
   background-color: rgb(9 2 2 / 0.6);
   border-radius: 0 10px 10px 0;
-
+  border-style: inset;
+  border-color: rgb(255 255 255 / 0.6);
 }
 #noVNC_control_bar.noVNC_open {
   left: 0;
@@ -424,6 +425,8 @@ select:active {
   background-color: rgb(9 2 2 / 0.6);
   border-bottom-right-radius: 10px;
   border-top-right-radius: 10px;
+  border-color: rgb(255 255 255 / 0.6);
+  border-style: inset;
 }
 #noVNC_control_bar.noVNC_open #noVNC_control_bar_handle:after {
   transform: translateX(1px) rotate(180deg);

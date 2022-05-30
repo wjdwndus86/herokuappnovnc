@@ -552,6 +552,20 @@ const UI = {
  * ==============
  *     VISUAL
  * ------v------*/
+    // Ignore clicks that are propogated from child elements in sub panels
+    isControlPanelItemClick(e) {
+        if (!(e && e.target && e.target.classList && e.target.parentNode &&
+            (
+                e.target.classList.contains('noVNC_button') && e.target.parentNode.id !== 'noVNC_modifiers' || 
+                e.target.classList.contains('noVNC_button_div') ||
+                e.target.classList.contains('noVNC_heading')
+            )
+            )) {
+            return false;
+        }
+
+        return true;
+    },
 
     // Disable/enable controls depending on connection state
     updateVisualState(state) {
@@ -1128,8 +1142,8 @@ const UI = {
     },
 
     toggleSettingsPanel(e) {
-        if (!(e && e.target && e.target.classList && (e.target.classList.contains('noVNC_button') || e.target.classList.contains('noVNC_button_div')))) {
-            return;
+        if (!UI.isControlPanelItemClick(e)) {
+            return false;
         }
 
         if (document.getElementById('noVNC_settings')
@@ -1163,7 +1177,11 @@ const UI = {
             .classList.remove("noVNC_selected");
     },
 
-    togglePowerPanel() {
+    togglePowerPanel(e) {
+        if (!UI.isControlPanelItemClick(e)) {
+            return false;
+        }
+
         if (document.getElementById('noVNC_power')
             .classList.contains("noVNC_open")) {
             UI.closePowerPanel();
@@ -1208,7 +1226,11 @@ const UI = {
             .classList.remove("noVNC_selected");
     },
 
-    toggleClipboardPanel() {
+    toggleClipboardPanel(e) {
+        if (!UI.isControlPanelItemClick(e)) {
+            return false;
+        }
+
         if (document.getElementById('noVNC_clipboard')
             .classList.contains("noVNC_open")) {
             UI.closeClipboardPanel();
@@ -2199,7 +2221,11 @@ const UI = {
             .classList.remove("noVNC_selected");
     },
 
-    toggleExtraKeys() {
+    toggleExtraKeys(e) {
+        if (!UI.isControlPanelItemClick(e)) {
+            return false;
+        }
+
         if (document.getElementById('noVNC_modifiers').classList.contains("noVNC_open")) {
             UI.closeExtraKeys();
         } else  {
