@@ -1,0 +1,41 @@
+#kasm_recording_control {
+  position: fixed;
+  display: inline-block;
+  top: 0;
+  right: 0;
+  width: 30px;
+  height: 25px;
+  text-align: center;
+  background-color: lightgray;
+  border-bottom-left-radius: 5px;
+  padding-top: 5px;
+}
+
+#kasm_recording_control .record {
+  display: inline-block;
+  background-color: red;
+  border-radius: 12px;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+}
+
+#kasm_recording_control .stats {
+  display: none;
+}
+
+#kasm_recording_control.is-recording {
+  width: 80px;
+  text-align: left;
+  padding-left: 5px;
+}
+
+#kasm_recording_control.is-recording .record {
+  border-radius: 0px;
+}
+
+#kasm_recording_control.is-recording .stats {
+  display: inline-block;
+  font-size: 0.9em;
+  padding-left: 5px;
+}

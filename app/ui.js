@@ -43,6 +43,8 @@ import Keyboard from "../core/input/keyboard.js";
 import RFB from "../core/rfb.js";
 import * as WebUtil from "./webutil.js";
 
+import "./recorder-ui.js";
+
 const PAGE_TITLE = "KasmVNC";
 
 var delta = 500;
